@@ -1,14 +1,14 @@
 import sys
 
-def readMem(pathFile):
+def read_memory(pathFile):
     with open(pathFile, 'r') as f:
         lenMemory = int(f.readline())
         memoryRepStr = f.readline()
         memory = [int(char) for char in memoryRepStr]
 
         return lenMemory, memory
-    
-def findFreeBlocks(memory):
+
+def find_free_blocks(memory):
     freeBlocks = []
     i = 0
     while i < len(memory):
@@ -22,14 +22,14 @@ def findFreeBlocks(memory):
 
     return freeBlocks
 
-def firstFit(freeBlocks, lenAllocation):
+def first_fit(freeBlocks, lenAllocation):
     for start, len in freeBlocks:
         if len >= lenAllocation:
             return start
         
     return None
 
-def bestFit(freeBlocks, lenAllocation):
+def best_fit(freeBlocks, lenAllocation):
     best = None
     for start, len in freeBlocks:
         if len >= lenAllocation:
@@ -38,12 +38,12 @@ def bestFit(freeBlocks, lenAllocation):
 
     return best[0] if best != None else None
 
-def worstFit(freeBlocks, lenAllocation):
+def worst_fit(freeBlocks, lenAllocation):
     worst = None
     for start, len in freeBlocks:
         if len >= lenAllocation:
             if worst is None or len > worst[1]:
-                worst = (start, len)
+                worst = (start, len)   
 
     return worst[0] if worst != None else None
 
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     strategy = sys.argv[1]
     pathFile = sys.argv[2]
 
-    memLength, memory = readMem(pathFile)
+    memLength, memory = read_memory(pathFile)
     
     while True:
         lenAllocation = int(input('Informe o tamanho da alocação (ou -1 para sair): '))
@@ -63,18 +63,18 @@ if __name__ == '__main__':
         if lenAllocation == -1:
             break
         
-        freeBlocks = findFreeBlocks(memory)
+        freeBlocks = find_free_blocks(memory)
         
         if not freeBlocks:
             print('Não há mais memória livre para alocação.')
             break
 
         if strategy == 'first':
-            indexAllocStart = firstFit(freeBlocks, lenAllocation)
+            indexAllocStart = first_fit(freeBlocks, lenAllocation)
         elif strategy == 'best':
-            indexAllocStart = bestFit(freeBlocks, lenAllocation)
+            indexAllocStart = best_fit(freeBlocks, lenAllocation)
         elif strategy == 'worst':
-            indexAllocStart = worstFit(freeBlocks, lenAllocation)
+            indexAllocStart = worst_fit(freeBlocks, lenAllocation)
 
         if indexAllocStart is None:
             print('Não há espaço suficiente para alocação. Tente um tamanho menor.')
