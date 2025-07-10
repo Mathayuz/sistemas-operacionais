@@ -5,6 +5,8 @@ import math
 import threading
 from dataclasses import dataclass
 
+host = 'localhost'
+
 @dataclass
 class Tarefa:
     """
@@ -25,23 +27,45 @@ class Clock:
         Após 5ms, ao Escalonador de Tarefas (isso garante que o Emissor insira as 
         tarefas antes do Escalonador tentar escaloná-las).
     """
-    def __init__(self):
-        self.current_time = 0
-        self.running: bool = False
-
-    def tick(self):
-        time.sleep(0.1)  # Simula o delay de 100ms
-        self.current_time += 1
-        print(f"Clock: {self.current_time}")
-        # Enviar mensagens ao Emissor e ao Escalonador
+    def __init__(self, porta: int = 4000):
+        self.tempo_atual = 0
+        self.rodando: bool = False
+        self.porta = porta
+        self.conexoes = []
 
     def start(self):
-        self.running = True
-        while self.running:
-            self.tick()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((host, self.porta))
+            s.listen(2)
+            print(f"[CLOCK] Clock iniciado na porta {self.porta}. Aguardando conexões...")
+
+            # Aceita conexões de Emissor de Tarefas e Escalonador de Tarefas
+            for _ in range(2):
+                conn, addr = s.accept()
+                print(f"[CLOCK] Conectado a {addr}")
+                self.conexoes.append(conn)
+
+            # Inicia o relógio
+            self.rodando = True
+            while self.rodando:
+                # Delay de 100ms para simular o avanço do tempo
+                time.sleep(0.1)
+                
+                # Incrementa o tempo do clock
+                self.tempo_atual += 1
+                print(f"[CLOCK] Tempo atual: {self.tempo_atual}")
+
+                # Envia o tempo atual para o Emissor de Tarefas
+                self.conexoes[0].sendall(str(self.tempo_atual).encode())
+                
+                # Aguarda 5ms antes de enviar ao Escalonador de Tarefas
+                time.sleep(0.005)
+                
+                # Envia o tempo atual para o Escalonador de Tarefas
+                self.conexoes[1].sendall(str(self.tempo_atual).encode())
 
     def stop(self):
-        self.running = False
+        self.rodando = False
 
 class emissor_de_tarefas:
     """
