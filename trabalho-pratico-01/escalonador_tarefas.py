@@ -298,23 +298,7 @@ def priod(tarefas: list[Tarefa]) -> list[Tarefa]:
     """
     pass
 
-def start_clock():
-    """
-    Inicia o relógio do sistema para simular o tempo de execução das tarefas.
-    """
-    pass
 
-def read_tasks(file_path: str) -> list[Tarefa]:
-    """
-    Lê as tarefas de um arquivo e retorna uma lista de objetos Tarefa.
-    """
-    pass
-
-def emit_tasks(tarefas: list[Tarefa], file_path: str):
-    """
-    Emite as tarefas para um arquivo.
-    """
-    pass
 
 def schedule_tasks(tarefas: list[Tarefa], algoritmo: str) -> list[Tarefa]:
     """
