@@ -3,7 +3,6 @@
 # Caetano Vendrame Mantovani RA: 135846
 # Matheus Cenerini Jacomini RA: 134700
 # Data: 07/2025
-# main.py
 import sys
 import socket
 import threading
@@ -15,6 +14,7 @@ import math
 
 # --- Componente do Clock ---
 def rodar_clock(porta_clock: int):
+
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(("localhost", porta_clock))
     server.listen(2)
@@ -28,6 +28,7 @@ def rodar_clock(porta_clock: int):
             conn_emissor.sendall((f"{clock}\n").encode())
             time.sleep(0.005)
             conn_escalonador.sendall((f"{clock}\n").encode())
+
             # Recebe eventual TERMINATE
             r, _, _ = select.select([conn_escalonador], [], [], 0.095)
             if r:
@@ -35,6 +36,7 @@ def rodar_clock(porta_clock: int):
                 if msg == "TERMINATE":
                     break
             clock += 1
+
     finally:
         conn_emissor.close()
         conn_escalonador.close()
@@ -43,6 +45,7 @@ def rodar_clock(porta_clock: int):
 
 # --- Componente do Emissor ---
 def rodar_emissor(porta_emissor: int, arquivo_tarefas: str):
+
     sock_clock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock_clock.connect(("localhost", 4000))
 
@@ -54,8 +57,15 @@ def rodar_emissor(porta_emissor: int, arquivo_tarefas: str):
     tarefas = []
     with open(arquivo_tarefas) as f:
         for linha in f:
-            id_, t_ingresso, dur, prio = linha.strip().split(";")
-            tarefas.append({"id": id_, "t_ingresso": int(t_ingresso), "dur": int(dur), "prio": int(prio)})
+            id_, t_ingresso, duracao, prio = linha.strip().split(";")
+            tarefas.append(
+                {
+                    "id": id_,
+                    "t_ingresso": int(t_ingresso),
+                    "duracao": int(duracao),
+                    "prio": int(prio),
+                }
+            )
 
     pendentes = list(tarefas)
     acabou_envio = False
@@ -63,22 +73,23 @@ def rodar_emissor(porta_emissor: int, arquivo_tarefas: str):
     try:
         while True:
             clk = int(sock_clock.recv(64).decode())
-            # emite tarefas no tempo atual
+            # Emite tarefas no tempo atual
             for t in [t for t in pendentes if t["t_ingresso"] == clk]:
-                msg = f"TASK;{t['id']};{t['dur']};{t['prio']}"
+                msg = f"TASK;{t['id']};{t['duracao']};{t['prio']}"
                 conn_escalonador.sendall((msg + "\n").encode())
                 pendentes.remove(t)
 
-            # sinaliza fim de emissão
+            # Sinaliza fim de emissão
             if not pendentes and not acabou_envio:
                 conn_escalonador.sendall("DONE\n".encode())
                 acabou_envio = True
 
-            # verifica TERMINATE
+            # Faz uma espera breve por "TERMINATE" do Escalonador; se chegar, sai do loop
             r, _, _ = select.select([conn_escalonador], [], [], 0.01)
             if r:
                 if conn_escalonador.recv(64).decode().strip().upper() == "TERMINATE":
                     break
+
     finally:
         sock_clock.close()
         conn_escalonador.close()
@@ -86,7 +97,8 @@ def rodar_emissor(porta_emissor: int, arquivo_tarefas: str):
 
 
 # --- Componente do Escalonador ---
-def rodar_escalonador(port_scheduler: int, algoritmo: str):
+def rodar_escalonador(porta_escalonador: int, algoritmo: str):
+
     sock_clock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock_clock.connect(("localhost", 4000))
     sock_emit = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -126,12 +138,12 @@ def rodar_escalonador(port_scheduler: int, algoritmo: str):
                     if partes[0] == "DONE":
                         todas_emitidas = True
                     elif partes[0] == "TASK" and len(partes) == 4:
-                        _, tid, dur, prio = partes
+                        _, tid, duracao, prio = partes
                         tarefas_info[tid] = {
                             "chegada": clk,
-                            "dur": int(dur),
+                            "duracao": int(duracao),
                             "prio": int(prio),
-                            "faltante": int(dur),
+                            "faltante": int(duracao),
                             "terminada": None,
                         }
                         fila_prontas.append(tid)
@@ -141,20 +153,18 @@ def rodar_escalonador(port_scheduler: int, algoritmo: str):
             if algoritmo == "fcfs":
                 if atual is None and fila_prontas:
                     atual = fila_prontas.popleft()
-            elif algoritmo == "sjf":
-                if atual is None and fila_prontas:
-                    prox = min(fila_prontas, key=lambda t: tarefas_info[t]["dur"])
-                    fila_prontas.remove(prox)
-                    atual = prox
-            elif algoritmo == "prioc":
-                if atual is None and fila_prontas:
-                    prox = min(fila_prontas, key=lambda t: tarefas_info[t]["prio"])
-                    fila_prontas.remove(prox)
-                    atual = prox
+
             elif algoritmo == "rr":
                 if atual is None and fila_rr:
                     atual = fila_rr.popleft()
                     quantum_restante = 3
+
+            elif algoritmo == "sjf":
+                if atual is None and fila_prontas:
+                    prox = min(fila_prontas, key=lambda t: tarefas_info[t]["duracao"])
+                    fila_prontas.remove(prox)
+                    atual = prox
+
             elif algoritmo == "srtf":
                 candidatos = list(fila_prontas) + ([atual] if atual else [])
                 if candidatos:
@@ -165,6 +175,13 @@ def rodar_escalonador(port_scheduler: int, algoritmo: str):
                         if prox in fila_prontas:
                             fila_prontas.remove(prox)
                         atual = prox
+
+            elif algoritmo == "prioc":
+                if atual is None and fila_prontas:
+                    prox = min(fila_prontas, key=lambda t: tarefas_info[t]["prio"])
+                    fila_prontas.remove(prox)
+                    atual = prox
+
             elif algoritmo == "priop":
                 candidatos = list(fila_prontas) + ([atual] if atual else [])
                 if candidatos:
@@ -174,6 +191,7 @@ def rodar_escalonador(port_scheduler: int, algoritmo: str):
                             fila_prontas.append(atual)
                         fila_prontas.remove(prox) if prox in fila_prontas else None
                         atual = prox
+
             elif algoritmo == "priod":
                 candidatos = list(fila_prontas) + ([atual] if atual else [])
                 if candidatos:
@@ -181,7 +199,9 @@ def rodar_escalonador(port_scheduler: int, algoritmo: str):
                         t: tarefas_info[t]["prio"] - (clk - tarefas_info[t]["chegada"])
                         for t in candidatos
                     }
-                    prox = min(candidatos, key=lambda t: (eff[t], tarefas_info[t]["chegada"]))
+                    prox = min(
+                        candidatos, key=lambda t: (eff[t], tarefas_info[t]["chegada"])
+                    )
                     if prox != atual:
                         if atual and tarefas_info[atual]["faltante"] > 0:
                             fila_prontas.append(atual)
@@ -221,7 +241,7 @@ def rodar_escalonador(port_scheduler: int, algoritmo: str):
             n = len(tarefas_info)
             for tid, info in tarefas_info.items():
                 turnaround = info["terminada"] - info["chegada"]
-                espera = turnaround - info["dur"]
+                espera = turnaround - info["duracao"]
                 turn_total += turnaround
                 espera_total += espera
                 f.write(
@@ -241,21 +261,29 @@ def main():
     if len(sys.argv) != 3:
         print("Uso: python main.py <arquivo_tarefas> <algoritmo>")
         sys.exit(1)
-    arquivo, alg = sys.argv[1], sys.argv[2]
+    arquivo, algoritmo = sys.argv[1], sys.argv[2]
+
     validos = {"fcfs", "rr", "sjf", "srtf", "prioc", "priop", "priod"}
-    if alg not in validos:
-        print(f"Algoritmo inválido: {alg}")
+    if algoritmo not in validos:
+        print(f"Algoritmo inválido: {algoritmo}")
         sys.exit(1)
 
     threads = [
         threading.Thread(target=rodar_clock, args=(4000,)),
         threading.Thread(target=rodar_emissor, args=(4001, arquivo)),
-        threading.Thread(target=rodar_escalonador, args=(4002, alg)),
+        threading.Thread(target=rodar_escalonador, args=(4002, algoritmo)),
     ]
+
+    # Define as threads do clock e emissor como daemon, para que terminem
+    # automaticamente quando o escalonador terminar
     for t in threads[:-1]:
         t.daemon = True
+
+    # Inicia todas as threads em paralelo
     for t in threads:
         t.start()
+
+    # Aguarda a thread do escalonador terminar
     threads[-1].join()
 
 
