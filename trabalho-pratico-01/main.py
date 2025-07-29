@@ -1,3 +1,8 @@
+# Trabalho Prático 01 - Sistemas Operacionais
+# Alunos:
+# Caetano Vendrame Mantovani RA: 135846
+# Matheus Cenerini Jacomini RA: 134700
+# Data: 07/2025
 # main.py
 import sys
 import socket
@@ -8,222 +13,223 @@ from collections import deque
 import math
 
 
-# --- Clock Component ---
-def run_clock(port_clock: int):
+# --- Componente do Clock ---
+def rodar_clock(porta_clock: int):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind(("localhost", port_clock))
+    server.bind(("localhost", porta_clock))
     server.listen(2)
-    conn_emitter, _ = server.accept()
-    conn_scheduler, _ = server.accept()
+    conn_emissor, _ = server.accept()
+    conn_escalonador, _ = server.accept()
 
     clock = 0
     try:
         while True:
-            # envia tick
-            conn_emitter.sendall((f"{clock}\n").encode())
+            # Envia tick para emissor e escalonador
+            conn_emissor.sendall((f"{clock}\n").encode())
             time.sleep(0.005)
-            conn_scheduler.sendall((f"{clock}\n").encode())
-            # recebe eventual TERMINATE
-            r, _, _ = select.select([conn_scheduler], [], [], 0.095)
+            conn_escalonador.sendall((f"{clock}\n").encode())
+            # Recebe eventual TERMINATE
+            r, _, _ = select.select([conn_escalonador], [], [], 0.095)
             if r:
-                msg = conn_scheduler.recv(64).decode().strip().upper()
+                msg = conn_escalonador.recv(64).decode().strip().upper()
                 if msg == "TERMINATE":
                     break
             clock += 1
     finally:
-        conn_emitter.close()
-        conn_scheduler.close()
+        conn_emissor.close()
+        conn_escalonador.close()
         server.close()
 
 
-# --- Emitter Component ---
-def run_emitter(port_emitter: int, arquivo_tarefas: str):
+# --- Componente do Emissor ---
+def rodar_emissor(porta_emissor: int, arquivo_tarefas: str):
     sock_clock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock_clock.connect(("localhost", 4000))
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind(("localhost", port_emitter))
+    server.bind(("localhost", porta_emissor))
     server.listen(1)
-    conn_sched, _ = server.accept()
+    conn_escalonador, _ = server.accept()
 
-    tasks = []
+    tarefas = []
     with open(arquivo_tarefas) as f:
-        for line in f:
-            id_, t0, dur, prio = line.strip().split(";")
-            tasks.append({"id": id_, "t0": int(t0), "dur": int(dur), "prio": int(prio)})
+        for linha in f:
+            id_, t_ingresso, dur, prio = linha.strip().split(";")
+            tarefas.append({"id": id_, "t_ingresso": int(t_ingresso), "dur": int(dur), "prio": int(prio)})
 
-    pending = list(tasks)
-    done_sent = False
+    pendentes = list(tarefas)
+    acabou_envio = False
 
     try:
         while True:
             clk = int(sock_clock.recv(64).decode())
-            # emite tarefas no tempo
-            for t in [t for t in pending if t["t0"] == clk]:
+            # emite tarefas no tempo atual
+            for t in [t for t in pendentes if t["t_ingresso"] == clk]:
                 msg = f"TASK;{t['id']};{t['dur']};{t['prio']}"
-                conn_sched.sendall((msg + "\n").encode())
-                pending.remove(t)
+                conn_escalonador.sendall((msg + "\n").encode())
+                pendentes.remove(t)
 
             # sinaliza fim de emissão
-            if not pending and not done_sent:
-                conn_sched.sendall("DONE\n".encode())
-                done_sent = True
+            if not pendentes and not acabou_envio:
+                conn_escalonador.sendall("DONE\n".encode())
+                acabou_envio = True
 
             # verifica TERMINATE
-            r, _, _ = select.select([conn_sched], [], [], 0.01)
+            r, _, _ = select.select([conn_escalonador], [], [], 0.01)
             if r:
-                if conn_sched.recv(64).decode().strip().upper() == "TERMINATE":
+                if conn_escalonador.recv(64).decode().strip().upper() == "TERMINATE":
                     break
     finally:
         sock_clock.close()
-        conn_sched.close()
+        conn_escalonador.close()
         server.close()
 
 
-# --- Scheduler Component ---
-def run_scheduler(port_scheduler: int, algoritmo: str):
+# --- Componente do Escalonador ---
+def rodar_escalonador(port_scheduler: int, algoritmo: str):
     sock_clock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock_clock.connect(("localhost", 4000))
     sock_emit = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock_emit.connect(("localhost", 4001))
 
-    ready_queue = deque()
-    rr_queue = deque()
-    tasks_info = {}
+    fila_prontas = deque()
+    fila_rr = deque()
+    tarefas_info = {}
     timeline = []
-    all_emitted = False
-    current = None
-    quantum_left = 0
-    emitter_buf = ""
+    todas_emitidas = False
+    atual = None
+    quantum_restante = 0
+    buffer_emissor = ""
 
     try:
         while True:
-            # recebe clock
+            # Recebe Clock
             clk = int(sock_clock.recv(64).decode())
 
-            # lê mensagens do emissor, bufferiza linhas
+            # Lê mensagens do emissor, bufferiza linhas
             while True:
                 r, _, _ = select.select([sock_emit], [], [], 0)
                 if not r:
                     break
-                raw = sock_emit.recv(256).decode()
-                if not raw:
-                    all_emitted = True
+                msg_emissor = sock_emit.recv(256).decode()
+                if not msg_emissor:
+                    todas_emitidas = True
                     break
-                emitter_buf += raw
-                # processa todas linhas completas
-                while "\n" in emitter_buf:
-                    line, emitter_buf = emitter_buf.split("\n", 1)
-                    line = line.strip()
-                    if not line:
+                buffer_emissor += msg_emissor
+                # Processa todas linhas completas
+                while "\n" in buffer_emissor:
+                    linha, buffer_emissor = buffer_emissor.split("\n", 1)
+                    linha = linha.strip()
+                    if not linha:
                         continue
-                    parts = line.split(";")
-                    if parts[0] == "DONE":
-                        all_emitted = True
-                    elif parts[0] == "TASK" and len(parts) == 4:
-                        _, tid, dur, prio = parts
-                        tasks_info[tid] = {
-                            "arrival": clk,
+                    partes = linha.split(";")
+                    if partes[0] == "DONE":
+                        todas_emitidas = True
+                    elif partes[0] == "TASK" and len(partes) == 4:
+                        _, tid, dur, prio = partes
+                        tarefas_info[tid] = {
+                            "chegada": clk,
                             "dur": int(dur),
                             "prio": int(prio),
-                            "remain": int(dur),
-                            "finish": None,
+                            "faltante": int(dur),
+                            "terminada": None,
                         }
-                        ready_queue.append(tid)
-                        rr_queue.append(tid)
+                        fila_prontas.append(tid)
+                        fila_rr.append(tid)
 
-            # seleção de tarefa
+            # Seleção de tarefa
             if algoritmo == "fcfs":
-                if current is None and ready_queue:
-                    current = ready_queue.popleft()
+                if atual is None and fila_prontas:
+                    atual = fila_prontas.popleft()
             elif algoritmo == "sjf":
-                if current is None and ready_queue:
-                    nxt = min(ready_queue, key=lambda t: tasks_info[t]["dur"])
-                    ready_queue.remove(nxt)
-                    current = nxt
+                if atual is None and fila_prontas:
+                    prox = min(fila_prontas, key=lambda t: tarefas_info[t]["dur"])
+                    fila_prontas.remove(prox)
+                    atual = prox
             elif algoritmo == "prioc":
-                if current is None and ready_queue:
-                    nxt = min(ready_queue, key=lambda t: tasks_info[t]["prio"])
-                    ready_queue.remove(nxt)
-                    current = nxt
+                if atual is None and fila_prontas:
+                    prox = min(fila_prontas, key=lambda t: tarefas_info[t]["prio"])
+                    fila_prontas.remove(prox)
+                    atual = prox
             elif algoritmo == "rr":
-                if current is None and rr_queue:
-                    current = rr_queue.popleft()
-                    quantum_left = 3
+                if atual is None and fila_rr:
+                    atual = fila_rr.popleft()
+                    quantum_restante = 3
             elif algoritmo == "srtf":
-                candidates = list(ready_queue) + ([current] if current else [])
-                if candidates:
-                    nxt = min(candidates, key=lambda t: tasks_info[t]["remain"])
-                    if nxt != current:
-                        if current and tasks_info[current]["remain"] > 0:
-                            ready_queue.append(current)
-                        if nxt in ready_queue:
-                            ready_queue.remove(nxt)
-                        current = nxt
+                candidatos = list(fila_prontas) + ([atual] if atual else [])
+                if candidatos:
+                    prox = min(candidatos, key=lambda t: tarefas_info[t]["faltante"])
+                    if prox != atual:
+                        if atual and tarefas_info[atual]["faltante"] > 0:
+                            fila_prontas.append(atual)
+                        if prox in fila_prontas:
+                            fila_prontas.remove(prox)
+                        atual = prox
             elif algoritmo == "priop":
-                candidates = list(ready_queue) + ([current] if current else [])
-                if candidates:
-                    nxt = min(candidates, key=lambda t: tasks_info[t]["prio"])
-                    if nxt != current:
-                        if current and tasks_info[current]["remain"] > 0:
-                            ready_queue.append(current)
-                        ready_queue.remove(nxt) if nxt in ready_queue else None
-                        current = nxt
+                candidatos = list(fila_prontas) + ([atual] if atual else [])
+                if candidatos:
+                    prox = min(candidatos, key=lambda t: tarefas_info[t]["prio"])
+                    if prox != atual:
+                        if atual and tarefas_info[atual]["faltante"] > 0:
+                            fila_prontas.append(atual)
+                        fila_prontas.remove(prox) if prox in fila_prontas else None
+                        atual = prox
             elif algoritmo == "priod":
-                candidates = list(ready_queue) + ([current] if current else [])
-                if candidates:
+                candidatos = list(fila_prontas) + ([atual] if atual else [])
+                if candidatos:
                     eff = {
-                        t: tasks_info[t]["prio"] - (clk - tasks_info[t]["arrival"])
-                        for t in candidates
+                        t: tarefas_info[t]["prio"] - (clk - tarefas_info[t]["chegada"])
+                        for t in candidatos
                     }
-                    nxt = min(candidates, key=lambda t: eff[t])
-                    if nxt != current:
-                        if current and tasks_info[current]["remain"] > 0:
-                            ready_queue.append(current)
-                        ready_queue.remove(nxt) if nxt in ready_queue else None
-                        current = nxt
+                    prox = min(candidatos, key=lambda t: eff[t])
+                    if prox != atual:
+                        if atual and tarefas_info[atual]["faltante"] > 0:
+                            fila_prontas.append(atual)
+                        fila_prontas.remove(prox) if prox in fila_prontas else None
+                        atual = prox
 
-            # execução de um tick
-            if current:
-                timeline.append(current)
-                tasks_info[current]["remain"] -= 1
+            # Execução de um tick
+            if atual:
+                timeline.append(atual)
+                tarefas_info[atual]["faltante"] -= 1
                 if algoritmo == "rr":
-                    quantum_left -= 1
-                if tasks_info[current]["remain"] == 0:
-                    tasks_info[current]["finish"] = clk + 1
-                    current = None
-                elif algoritmo == "rr" and quantum_left == 0:
-                    rr_queue.append(current)
-                    current = None
+                    quantum_restante -= 1
+                if tarefas_info[atual]["faltante"] == 0:
+                    tarefas_info[atual]["terminada"] = clk + 1
+                    atual = None
+                elif algoritmo == "rr" and quantum_restante == 0:
+                    fila_rr.append(atual)
+                    atual = None
             else:
                 timeline.append("idle")
 
-            # condição de término
-            busy = any(info["finish"] is None for info in tasks_info.values())
-            if all_emitted and not busy and current is None:
+            # Condição de término
+            ocupada = any(info["terminada"] is None for info in tarefas_info.values())
+            if todas_emitidas and not ocupada and atual is None:
                 break
 
-        # sinaliza término
+        # Sinaliza término
         sock_clock.sendall("TERMINATE".encode())
         sock_emit.sendall("TERMINATE".encode())
 
-        # gera arquivo de saída
+        # Gera arquivo de saída
+        saida_timeline = [t for t in timeline if t != "idle"]
         with open(f"saida_{algoritmo}.txt", "w") as f:
-            f.write(";".join(timeline) + "\n")
-            turn_sum = 0
-            wait_sum = 0
-            n = len(tasks_info)
-            for tid, info in tasks_info.items():
-                turnaround = info["finish"] - info["arrival"]
-                waiting = turnaround - info["dur"]
-                turn_sum += turnaround
-                wait_sum += waiting
+            f.write(";".join(saida_timeline) + "\n")
+            turn_total = 0
+            espera_total = 0
+            n = len(tarefas_info)
+            for tid, info in tarefas_info.items():
+                turnaround = info["terminada"] - info["chegada"]
+                espera = turnaround - info["dur"]
+                turn_total += turnaround
+                espera_total += espera
                 f.write(
-                    f"{tid};{info['arrival']};{info['finish']};{turnaround};{waiting}\n"
+                    f"{tid};{info['chegada']};{info['terminada']};{turnaround};{espera}\n"
                 )
-            avg_turn = math.ceil((turn_sum / n) * 10) / 10
-            avg_wait = math.ceil((wait_sum / n) * 10) / 10
-            f.write(f"{avg_turn};{avg_wait}\n")
+            media_turn = math.ceil((turn_total / n) * 10) / 10
+            media_espera = math.ceil((espera_total / n) * 10) / 10
+            f.write(f"{media_turn};{media_espera}\n")
 
     finally:
         sock_clock.close()
@@ -242,9 +248,9 @@ def main():
         sys.exit(1)
 
     threads = [
-        threading.Thread(target=run_clock, args=(4000,)),
-        threading.Thread(target=run_emitter, args=(4001, arquivo)),
-        threading.Thread(target=run_scheduler, args=(4002, alg)),
+        threading.Thread(target=rodar_clock, args=(4000,)),
+        threading.Thread(target=rodar_emissor, args=(4001, arquivo)),
+        threading.Thread(target=rodar_escalonador, args=(4002, alg)),
     ]
     for t in threads[:-1]:
         t.daemon = True
