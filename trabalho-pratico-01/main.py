@@ -181,7 +181,7 @@ def rodar_escalonador(port_scheduler: int, algoritmo: str):
                         t: tarefas_info[t]["prio"] - (clk - tarefas_info[t]["chegada"])
                         for t in candidatos
                     }
-                    prox = min(candidatos, key=lambda t: eff[t])
+                    prox = min(candidatos, key=lambda t: (eff[t], tarefas_info[t]["chegada"]))
                     if prox != atual:
                         if atual and tarefas_info[atual]["faltante"] > 0:
                             fila_prontas.append(atual)
