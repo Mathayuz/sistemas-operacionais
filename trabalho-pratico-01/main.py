@@ -69,10 +69,22 @@ def rodar_emissor(porta_emissor: int, arquivo_tarefas: str):
 
     pendentes = list(tarefas)
     acabou_envio = False
+    clock_buf = ""
 
     try:
         while True:
-            clk = int(sock_clock.recv(64).decode())
+            raw = sock_clock.recv(256).decode()
+            if not raw:
+                break
+
+            clock_buf += raw
+
+            while "\n" in clock_buf:
+                line, clock_buf = clock_buf.split("\n", 1)
+                if not line:
+                    continue
+                clk = int(line)
+
             # Emite tarefas no tempo atual
             for t in [t for t in pendentes if t["t_ingresso"] == clk]:
                 msg = f"TASK;{t['id']};{t['duracao']};{t['prio']}"
@@ -112,11 +124,22 @@ def rodar_escalonador(porta_escalonador: int, algoritmo: str):
     atual = None
     quantum_restante = 0
     buffer_emissor = ""
+    clock_buf = ""
 
     try:
         while True:
             # Recebe Clock
-            clk = int(sock_clock.recv(64).decode())
+            raw = sock_clock.recv(256).decode()
+            if not raw:
+                break
+
+            clock_buf += raw
+
+            while "\n" in clock_buf:
+                line, clock_buf = clock_buf.split("\n", 1)
+                if not line:
+                    continue
+                clk = int(line)
 
             # Lê mensagens do emissor, bufferiza linhas
             while True:
