@@ -47,6 +47,7 @@ class Clock:
             print("[CLOCK] Todas as conexões estabelecidas. Iniciando o relógio...")
             
             # Recebe mensagem de término do Escalonador de Tarefas
+            # DPS TEM QUE TIRAR ESSA THREAD DAQUI, AS THREAD VAO ESTAR SO NA MAIN (EU ACHO)
             threading.Thread(target=self.receive_messages, args=(self.conexoes[1],)).start
 
             # Inicia o relógio
@@ -297,8 +298,6 @@ def priod(tarefas: list[Tarefa]) -> list[Tarefa]:
     Simula o escalonamento de tarefas usando o algoritmo PRIOD (Prioridade Dinâmica).
     """
     pass
-
-
 
 def schedule_tasks(tarefas: list[Tarefa], algoritmo: str) -> list[Tarefa]:
     """
