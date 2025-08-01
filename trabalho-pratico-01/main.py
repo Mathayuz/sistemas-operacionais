@@ -2,7 +2,7 @@
 # Alunos:
 # Caetano Vendrame Mantovani RA: 135846
 # Matheus Cenerini Jacomini RA: 134700
-# Data: 07/2025
+# Data: 01/08/2025
 import sys
 import socket
 import threading
@@ -154,7 +154,7 @@ def rodar_escalonador(porta_escalonador: int, algoritmo: str):
                             "prio": int(prio),
                             "faltante": int(duracao),
                             "terminada": None,
-                            "wait_time": 0,  # contador de espera
+                            "wait_time": 0, 
                         }
                         fila_prontas.append(tid)
                         fila_rr.append(tid)
@@ -162,7 +162,7 @@ def rodar_escalonador(porta_escalonador: int, algoritmo: str):
             # Aging: incrementa espera de quem está na fila
             for tid in list(fila_prontas):
                 tarefas_info[tid]["wait_time"] += 1
-            # quem está executando não envelhece
+            # Quem está executando não envelhece
             if atual:
                 tarefas_info[atual]["wait_time"] = 0
 
@@ -213,7 +213,7 @@ def rodar_escalonador(porta_escalonador: int, algoritmo: str):
             elif algoritmo == "priod":
                 candidatos = list(fila_prontas) + ([atual] if atual else [])
                 if candidatos:
-                    # prioridade ajustada pelo tempo de espera
+                    # Prioridade ajustada pelo tempo de espera
                     eff = {t: tarefas_info[t]["prio"] - tarefas_info[t]["wait_time"] for t in candidatos}
                     prox = min(candidatos, key=lambda t: (eff[t], tarefas_info[t]["chegada"]))
                     if prox != atual:
